@@ -49,7 +49,11 @@ public final class PaymentStatusMapper {
                 .retryAllowed(state == CustomerPaymentState.FAILED || state == CustomerPaymentState.PENDING)
                 .build();
     }
-
+    
+    public void testingPullrequest (){
+        return null;
+    }
+    
     private static CustomerPaymentState toCustomerState(Payment payment, Order order) {
         if (payment.getPaymentStatus() == PaymentStatus.PAID) {
             return CustomerPaymentState.PAID;
