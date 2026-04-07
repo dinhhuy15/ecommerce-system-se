@@ -1,21 +1,9 @@
 package com.example.fashionshop.modules.order.service;
 
 import com.example.fashionshop.common.enums.OrderStatus;
-import com.example.fashionshop.common.enums.PaymentMethod;
-import com.example.fashionshop.common.enums.PaymentStatus;
 import com.example.fashionshop.common.exception.BadRequestException;
-import com.example.fashionshop.common.exception.ForbiddenException;
-import com.example.fashionshop.common.exception.OrderCancellationException;
-import com.example.fashionshop.common.exception.OrderDetailLoadException;
-import com.example.fashionshop.common.exception.OrderListLoadException;
-import com.example.fashionshop.common.exception.OrderPlacementException;
-import com.example.fashionshop.common.exception.OrderStatusUpdateException;
 import com.example.fashionshop.common.exception.ResourceNotFoundException;
-import com.example.fashionshop.common.exception.UnauthorizedException;
-import com.example.fashionshop.common.exception.OrderStatusLoadException;
 import com.example.fashionshop.common.mapper.OrderMapper;
-import com.example.fashionshop.common.mapper.OrderTrackingMapper;
-import com.example.fashionshop.common.response.PaginationResponse;
 import com.example.fashionshop.common.util.SecurityUtil;
 import com.example.fashionshop.modules.cart.entity.Cart;
 import com.example.fashionshop.modules.cart.entity.CartItem;
@@ -25,72 +13,30 @@ import com.example.fashionshop.modules.invoice.entity.Invoice;
 import com.example.fashionshop.modules.invoice.repository.InvoiceRepository;
 import com.example.fashionshop.modules.notification.service.NotificationService;
 import com.example.fashionshop.modules.order.dto.CancelOrderRequest;
-import com.example.fashionshop.modules.order.dto.CancelOrderResponse;
-import com.example.fashionshop.modules.order.dto.CheckoutSummaryItemResponse;
-import com.example.fashionshop.modules.order.dto.CheckoutSummaryResponse;
-import com.example.fashionshop.modules.order.dto.CustomerOrderHistoryQuery;
-import com.example.fashionshop.modules.order.dto.OrderDetailResponse;
-import com.example.fashionshop.modules.order.dto.OrderListQuery;
 import com.example.fashionshop.modules.order.dto.OrderResponse;
-import com.example.fashionshop.modules.order.dto.OrderSummaryResponse;
-import com.example.fashionshop.modules.order.dto.OrderStatusTrackingResponse;
+import com.example.fashionshop.modules.order.dto.OrderStatusResponse;
 import com.example.fashionshop.modules.order.dto.PlaceOrderRequest;
-import com.example.fashionshop.modules.order.dto.UpdateCheckoutPaymentMethodRequest;
 import com.example.fashionshop.modules.order.dto.UpdateOrderStatusRequest;
-import com.example.fashionshop.modules.order.dto.UpdateOrderStatusResponse;
 import com.example.fashionshop.modules.order.entity.Order;
 import com.example.fashionshop.modules.order.entity.OrderItem;
 import com.example.fashionshop.modules.order.repository.OrderItemRepository;
 import com.example.fashionshop.modules.order.repository.OrderRepository;
-import com.example.fashionshop.modules.payment.entity.Payment;
-import com.example.fashionshop.modules.payment.repository.PaymentRepository;
 import com.example.fashionshop.modules.product.entity.Product;
-import com.example.fashionshop.modules.product.repository.ProductRepository;
 import com.example.fashionshop.modules.user.entity.User;
 import com.example.fashionshop.modules.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
-import static com.example.fashionshop.common.enums.InvoicePaymentStatus.PENDING;
+import static com.example.fashionshop.common.enums.InvoicePaymentStatus.UNPAID;
 
 @Service
 @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
-
-    private static final BigDecimal ZERO = BigDecimal.ZERO;
-    private static final BigDecimal DEFAULT_SHIPPING_FEE = ZERO;
-    private static final BigDecimal DEFAULT_DISCOUNT = ZERO;
-    private static final List<PaymentMethod> CHECKOUT_PAYMENT_METHODS = List.of(
-            PaymentMethod.COD,
-            PaymentMethod.BANKING
-    );
-
-    private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED_STATUS_TRANSITIONS =
-            buildAllowedTransitions();
-
-    private static final Set<OrderStatus> CUSTOMER_NON_CANCELLABLE_STATUSES =
-            EnumSet.of(
-                    OrderStatus.SHIPPED,
-                    OrderStatus.DELIVERED,
-                    OrderStatus.COMPLETED,
-                    OrderStatus.CANCELLED
-            );
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
@@ -98,646 +44,168 @@ public class OrderServiceImpl implements OrderService {
     private final CartItemRepository cartItemRepository;
     private final UserRepository userRepository;
     private final InvoiceRepository invoiceRepository;
-    private final PaymentRepository paymentRepository;
-    private final ProductRepository productRepository;
     private final NotificationService notificationService;
-
-    @Override
-    public CheckoutSummaryResponse getCheckoutSummary() {
-        User user = getCurrentUser();
-        Cart cart = cartRepository.findByUser(user).orElse(null);
-
-        if (cart == null) {
-            return CheckoutSummaryResponse.builder()
-                    .empty(true)
-                    .message("Cart is empty")
-                    .customerName(user.getFullName())
-                    .customerPhone(user.getPhoneNumber())
-                    .suggestedShippingAddress(user.getAddress())
-                    .availablePaymentMethods(CHECKOUT_PAYMENT_METHODS)
-                    .selectedPaymentMethod(null)
-                    .items(List.of())
-                    .totalItems(0)
-                    .distinctItemCount(0)
-                    .subtotal(ZERO)
-                    .shippingFee(DEFAULT_SHIPPING_FEE)
-                    .discountAmount(DEFAULT_DISCOUNT)
-                    .finalTotal(ZERO)
-                    .build();
-        }
-
-        List<CartItem> cartItems = cartItemRepository.findByCart(cart);
-        if (cartItems.isEmpty()) {
-            return CheckoutSummaryResponse.builder()
-                    .cartId(cart.getId())
-                    .empty(true)
-                    .message("Cart is empty")
-                    .customerName(user.getFullName())
-                    .customerPhone(user.getPhoneNumber())
-                    .suggestedShippingAddress(user.getAddress())
-                    .availablePaymentMethods(CHECKOUT_PAYMENT_METHODS)
-                    .selectedPaymentMethod(resolveCheckoutPaymentMethod(cart))
-                    .items(List.of())
-                    .totalItems(0)
-                    .distinctItemCount(0)
-                    .subtotal(ZERO)
-                    .shippingFee(DEFAULT_SHIPPING_FEE)
-                    .discountAmount(DEFAULT_DISCOUNT)
-                    .finalTotal(ZERO)
-                    .build();
-        }
-
-        List<CheckoutSummaryItemResponse> items = cartItems.stream()
-                .map(this::toCheckoutItem)
-                .toList();
-
-        BigDecimal subtotal = items.stream()
-                .map(CheckoutSummaryItemResponse::getLineTotal)
-                .reduce(ZERO, BigDecimal::add);
-
-        int totalItems = items.stream()
-                .mapToInt(item -> item.getQuantity() == null ? 0 : item.getQuantity())
-                .sum();
-
-        return CheckoutSummaryResponse.builder()
-                .cartId(cart.getId())
-                .empty(false)
-                .message("Checkout summary fetched successfully")
-                .customerName(user.getFullName())
-                .customerPhone(user.getPhoneNumber())
-                .suggestedShippingAddress(user.getAddress())
-                .availablePaymentMethods(CHECKOUT_PAYMENT_METHODS)
-                .selectedPaymentMethod(resolveCheckoutPaymentMethod(cart))
-                .items(items)
-                .totalItems(totalItems)
-                .distinctItemCount(items.size())
-                .subtotal(subtotal)
-                .shippingFee(DEFAULT_SHIPPING_FEE)
-                .discountAmount(DEFAULT_DISCOUNT)
-                .finalTotal(subtotal.add(DEFAULT_SHIPPING_FEE).subtract(DEFAULT_DISCOUNT))
-                .build();
-    }
-
-    @Override
-    @Transactional
-    public CheckoutSummaryResponse updateCheckoutPaymentMethod(UpdateCheckoutPaymentMethodRequest request) {
-        User user = getCurrentUser();
-        Cart cart = cartRepository.findByUser(user)
-                .orElseThrow(() -> new UnauthorizedException("Checkout session expired or order is invalid"));
-
-        List<CartItem> cartItems = cartItemRepository.findByCart(cart);
-        if (cartItems.isEmpty()) {
-            throw new UnauthorizedException("Checkout session expired or order is invalid");
-        }
-
-        PaymentMethod selectedMethod = request != null ? request.getPaymentMethod() : null;
-        if (selectedMethod == null) {
-            throw new BadRequestException("Please select a payment method");
-        }
-
-        if (!CHECKOUT_PAYMENT_METHODS.contains(selectedMethod)) {
-            throw new BadRequestException("Invalid payment method. Allowed values: COD, E-payment");
-        }
-
-        cart.setSelectedPaymentMethod(selectedMethod);
-        cartRepository.save(cart);
-
-        return getCheckoutSummary();
-    }
 
     @Override
     @Transactional
     public OrderResponse placeOrder(PlaceOrderRequest request) {
-        try {
-            User user = getCurrentUser();
-            Cart cart = cartRepository.findByUser(user)
-                    .orElseThrow(() -> new BadRequestException("Cart is empty"));
-
-            List<CartItem> cartItems = cartItemRepository.findByCart(cart);
-            if (cartItems.isEmpty()) {
-                throw new BadRequestException("Cart is empty");
-            }
-
-            PaymentMethod selectedPaymentMethod = resolvePlaceOrderPaymentMethod(request, cart);
-
-            BigDecimal subtotal = ZERO;
-            List<CartItem> validItems = new ArrayList<>();
-
-            for (CartItem cartItem : cartItems) {
-                Product product = validateAndLockProduct(cartItem.getProduct().getId());
-                validateProductAvailability(product, cartItem);
-
-                BigDecimal lineTotal = product.getPrice()
-                        .multiply(BigDecimal.valueOf(cartItem.getQuantity()));
-                subtotal = subtotal.add(lineTotal);
-                validItems.add(cartItem);
-            }
-
-            BigDecimal finalTotal = subtotal.add(DEFAULT_SHIPPING_FEE).subtract(DEFAULT_DISCOUNT);
-
-            Order order = orderRepository.save(Order.builder()
-                    .user(user)
-                    .status(selectedPaymentMethod == PaymentMethod.COD ? OrderStatus.CONFIRMED : OrderStatus.PENDING)
-                    .totalPrice(finalTotal)
-                    .receiverName(request.getReceiverName())
-                    .phone(request.getPhone())
-                    .shippingAddress(buildShippingAddress(request))
-                    .customerNote(request.getNote())
-                    .build());
-
-            for (CartItem cartItem : validItems) {
-                Product product = validateAndLockProduct(cartItem.getProduct().getId());
-                validateProductAvailability(product, cartItem);
-
-                product.setStockQuantity(product.getStockQuantity() - cartItem.getQuantity());
-                productRepository.save(product);
-
-                orderItemRepository.save(OrderItem.builder()
-                        .order(order)
-                        .product(product)
-                        .quantity(cartItem.getQuantity())
-                        .price(product.getPrice())
-                        .build());
-            }
-
-            paymentRepository.save(Payment.builder()
-                    .order(order)
-                    .paymentMethod(selectedPaymentMethod)
-                    .paymentStatus(PaymentStatus.UNPAID)
-                    .build());
-
-            Invoice invoice = Invoice.builder()
-                    .order(order)
-                    .invoiceNumber("INV-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
-                    .tax(ZERO)
-                    .totalAmount(finalTotal)
-                    .paymentStatus(PENDING)
-                    .note("Invoice created automatically when placing order")
-                    .build();
-            invoiceRepository.save(invoice);
-
-            cartItemRepository.deleteByCart(cart);
-            cart.setSelectedPaymentMethod(null);
-            cartRepository.save(cart);
-            notificationService.sendOrderNotification(
-                    user.getId(),
-                    "Order #" + order.getId() + " placed successfully"
-            );
-
-            return OrderMapper.toResponse(
-                    order,
-                    orderItemRepository.findByOrder(order),
-                    paymentRepository.findTopByOrderOrderByIdDesc(order)
-            );
-        } catch (BadRequestException | ResourceNotFoundException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new OrderPlacementException("Order placement failed", ex);
+        User user = getCurrentUser();
+        Cart cart = cartRepository.findByUser(user).orElseThrow(() -> new BadRequestException("Cart is empty"));
+        List<CartItem> cartItems = cartItemRepository.findByCart(cart);
+        if (cartItems.isEmpty()) {
+            throw new BadRequestException("Cart is empty");
         }
+
+        BigDecimal totalPrice = BigDecimal.ZERO;
+        for (CartItem cartItem : cartItems) {
+            Product product = cartItem.getProduct();
+            if (product.getStockQuantity() < cartItem.getQuantity()) {
+                throw new BadRequestException("Insufficient stock for product: " + product.getName());
+            }
+            totalPrice = totalPrice.add(product.getPrice().multiply(BigDecimal.valueOf(cartItem.getQuantity())));
+        }
+
+        Order order = orderRepository.save(Order.builder()
+                .user(user)
+                .status(OrderStatus.PENDING)
+                .totalPrice(totalPrice)
+                .receiverName(request.getReceiverName())
+                .phone(request.getPhone())
+                .shippingAddress(request.getShippingAddress())
+                .build());
+
+        for (CartItem cartItem : cartItems) {
+            Product product = cartItem.getProduct();
+            product.setStockQuantity(product.getStockQuantity() - cartItem.getQuantity());
+            orderItemRepository.save(OrderItem.builder()
+                    .order(order)
+                    .product(product)
+                    .quantity(cartItem.getQuantity())
+                    .price(product.getPrice())
+                    .build());
+        }
+
+        Invoice invoice = Invoice.builder()
+                .order(order)
+                .invoiceNumber("INV-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase())
+                .tax(BigDecimal.ZERO)
+                .totalAmount(totalPrice)
+                .paymentStatus(UNPAID)
+                .note("Invoice created automatically when placing order")
+                .build();
+        invoiceRepository.save(invoice);
+
+        cartItemRepository.deleteByCart(cart);
+        notificationService.sendOrderNotification(user.getId(), "Order #" + order.getId() + " placed successfully");
+
+        return OrderMapper.toResponse(order, orderItemRepository.findByOrder(order));
     }
 
     @Override
     public List<OrderResponse> getMyOrders() {
         User user = getCurrentUser();
         return orderRepository.findByUser(user).stream()
-                .map(order -> OrderMapper.toResponse(
-                        order,
-                        orderItemRepository.findByOrder(order),
-                        paymentRepository.findTopByOrderOrderByIdDesc(order)
-                ))
+                .map(order -> OrderMapper.toResponse(order, orderItemRepository.findByOrder(order)))
                 .toList();
     }
 
     @Override
-    public PaginationResponse<OrderSummaryResponse> getMyOrderHistory(CustomerOrderHistoryQuery query) {
+    public OrderResponse getMyOrderDetail(Integer orderId) {
         User user = getCurrentUser();
-
-        try {
-            Pageable pageable = PageRequest.of(
-                    query.getPage(),
-                    query.getSize(),
-                    resolveSort(query.getSortBy(), query.getSortDir())
-            );
-
-            Page<Order> orderPage = orderRepository.findAll(
-                    buildCustomerOrderHistorySpecification(user, query),
-                    pageable
-            );
-
-            List<OrderSummaryResponse> items = orderPage.getContent().stream()
-                    .map(this::toOrderSummaryResponse)
-                    .toList();
-
-            return PaginationResponse.<OrderSummaryResponse>builder()
-                    .items(items)
-                    .page(orderPage.getNumber())
-                    .size(orderPage.getSize())
-                    .totalItems(orderPage.getTotalElements())
-                    .totalPages(orderPage.getTotalPages())
-                    .build();
-        } catch (OrderListLoadException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new OrderListLoadException("Unable to load order history");
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        if (!order.getUser().getId().equals(user.getId())) {
+            throw new BadRequestException("You are not allowed to access this order");
         }
+        return OrderMapper.toResponse(order, orderItemRepository.findByOrder(order));
     }
 
     @Override
-    public OrderDetailResponse getMyOrderDetail(Integer orderId) {
-        try {
-            User user = getCurrentUser();
-            Order order = orderRepository.findByIdAndUserId(orderId, user.getId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
-            return buildOrderDetailResponse(order);
-        } catch (ResourceNotFoundException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new OrderDetailLoadException(ex);
+    public void cancelMyOrder(Integer orderId) {
+        User user = getCurrentUser();
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        if (!order.getUser().getId().equals(user.getId())) {
+            throw new BadRequestException("You are not allowed to cancel this order");
         }
+        if (order.getStatus() == OrderStatus.SHIPPING || order.getStatus() == OrderStatus.COMPLETED) {
+            throw new BadRequestException("Cannot cancel this order in current status");
+        }
+        order.setStatus(OrderStatus.CANCELLED);
+        orderRepository.save(order);
     }
 
     @Override
-    public OrderStatusTrackingResponse getMyOrderTrackingStatus(Integer orderId) {
-        try {
-            User user = getCurrentUser();
-            Order order = orderRepository.findByIdAndUserId(orderId, user.getId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
-
-            return buildOrderStatusTrackingResponse(order);
-        } catch (ResourceNotFoundException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new OrderStatusLoadException(ex);
+    public OrderStatusResponse trackOrderStatus(Integer orderId) {
+        User user = getCurrentUser();
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        if (!order.getUser().getId().equals(user.getId())) {
+            throw new BadRequestException("You are not allowed to track this order");
         }
-    }
-
-    @Override
-    @Transactional
-    public CancelOrderResponse cancelMyOrder(Integer orderId, CancelOrderRequest request) {
-        try {
-            User user = getCurrentUser();
-            Order order = getOrderOrThrow(orderId);
-
-            validateCustomerOwnsOrder(user, order);
-            validateOrderCanBeCancelledByCustomer(order);
-
-            if (order.getStatus() != OrderStatus.CANCELLED) {
-                order.setStatus(OrderStatus.CANCELLED);
-                order = orderRepository.save(order);
-            }
-
-            return CancelOrderResponse.builder()
-                    .orderId(order.getId())
-                    .status(order.getStatus())
-                    .cancellationReason(request != null ? request.getReason() : null)
-                    .updatedAt(order.getUpdatedAt())
-                    .build();
-        } catch (BadRequestException | ResourceNotFoundException | ForbiddenException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new OrderCancellationException();
-        }
+        return OrderStatusResponse.builder()
+                .orderId(order.getId())
+                .status(order.getStatus())
+                .createdAt(order.getCreatedAt())
+                .build();
     }
 
     @Override
     public List<OrderResponse> getAllOrders() {
         return orderRepository.findAll().stream()
-                .map(order -> OrderMapper.toResponse(
-                        order,
-                        orderItemRepository.findByOrder(order),
-                        paymentRepository.findTopByOrderOrderByIdDesc(order)
-                ))
+                .map(order -> OrderMapper.toResponse(order, orderItemRepository.findByOrder(order)))
                 .toList();
     }
 
     @Override
-    public PaginationResponse<OrderSummaryResponse> getManageOrderSummaries(OrderListQuery query) {
-        try {
-            Sort sort = resolveSort(query.getSortBy(), query.getSortDir());
-            PageRequest pageRequest = PageRequest.of(query.getPage(), query.getSize(), sort);
-            Page<Order> orderPage = orderRepository.findAll(
-                    buildManageOrderSpecification(query),
-                    pageRequest
-            );
-
-            List<OrderSummaryResponse> items = orderPage.getContent().stream()
-                    .map(this::toOrderSummaryResponse)
-                    .toList();
-
-            return PaginationResponse.<OrderSummaryResponse>builder()
-                    .items(items)
-                    .page(orderPage.getNumber())
-                    .size(orderPage.getSize())
-                    .totalItems(orderPage.getTotalElements())
-                    .totalPages(orderPage.getTotalPages())
-                    .build();
-        } catch (OrderListLoadException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new OrderListLoadException("Failed to load order list");
-        }
+    public OrderResponse getOrderDetail(Integer orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        return OrderMapper.toResponse(order, orderItemRepository.findByOrder(order));
     }
 
     @Override
-    public OrderDetailResponse getOrderDetail(Integer orderId) {
+    public OrderResponse updateOrderStatus(Integer orderId, UpdateOrderStatusRequest request) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
-        return buildOrderDetailResponse(order);
+        validateTransition(order.getStatus(), request.getStatus());
+        order.setStatus(request.getStatus());
+        order.setManagedBy(getCurrentUser());
+        Order saved = orderRepository.save(order);
+        return OrderMapper.toResponse(saved, orderItemRepository.findByOrder(saved));
     }
 
     @Override
     @Transactional
-    public UpdateOrderStatusResponse updateOrderStatus(Integer orderId, UpdateOrderStatusRequest request) {
-        try {
-            Order order = orderRepository.findById(orderId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
-
-            OrderStatus nextStatus = request.getStatus();
-            OrderStatus currentStatus = order.getStatus();
-            validateTransition(currentStatus, nextStatus);
-
-            if (currentStatus != nextStatus) {
-                order.setStatus(nextStatus);
-                order.setManagedBy(getCurrentUser());
-                order = orderRepository.save(order);
-            }
-
-            return UpdateOrderStatusResponse.builder()
-                    .orderId(order.getId())
-                    .previousStatus(currentStatus)
-                    .currentStatus(order.getStatus())
-                    .allowedNextStatuses(getAllowedNextStatuses(order.getStatus()))
-                    .updatedAt(order.getUpdatedAt())
-                    .updatedByUserId(order.getManagedBy() != null ? order.getManagedBy().getId() : null)
-                    .build();
-        } catch (BadRequestException | ResourceNotFoundException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new OrderStatusUpdateException(ex);
+    public void cancelOrder(Integer orderId, CancelOrderRequest request) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        if (order.getStatus() == OrderStatus.COMPLETED || order.getStatus() == OrderStatus.CANCELLED) {
+            throw new BadRequestException("Order cannot be cancelled");
         }
+        order.setStatus(OrderStatus.CANCELLED);
+        order.setCancellationReason(request.getReason());
+        order.setManagedBy(getCurrentUser());
+        orderRepository.save(order);
     }
 
-    private OrderDetailResponse buildOrderDetailResponse(Order order) {
-        try {
-            return OrderMapper.toDetailResponse(
-                    order,
-                    orderItemRepository.findByOrder(order),
-                    invoiceRepository.findByOrder(order),
-                    paymentRepository.findTopByOrderOrderByIdDesc(order)
-            );
-        } catch (ResourceNotFoundException ex) {
-            throw ex;
-        } catch (Exception ex) {
-            throw new OrderDetailLoadException(ex);
+    @Override
+    @Transactional
+    public void cancelOrderByStaff(Integer orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        if (order.getStatus() == OrderStatus.COMPLETED || order.getStatus() == OrderStatus.CANCELLED) {
+            throw new BadRequestException("Cannot cancel order in current status: " + order.getStatus());
         }
-    }
-
-    private OrderStatusTrackingResponse buildOrderStatusTrackingResponse(Order order) {
-        Invoice invoice = invoiceRepository.findByOrder(order).orElse(null);
-        List<OrderItem> items = orderItemRepository.findByOrder(order);
-
-        return OrderStatusTrackingResponse.builder()
-                .summary(OrderSummaryResponse.builder()
-                        .id(order.getId())
-                        .orderId(order.getId())
-                        .orderCode(invoice != null ? invoice.getInvoiceNumber() : "ORD-" + order.getId())
-                        .orderDate(order.getCreatedAt())
-                        .orderStatus(order.getStatus())
-                        .totalAmount(order.getTotalPrice() != null ? order.getTotalPrice() : ZERO)
-                        .itemCount(items.size())
-                        .updatedAt(order.getUpdatedAt())
-                        .build())
-                .tracking(OrderTrackingMapper.toTrackingInfo(order))
-                .build();
-    }
-
-    private CheckoutSummaryItemResponse toCheckoutItem(CartItem cartItem) {
-        Product product = cartItem.getProduct();
-        BigDecimal unitPrice = product.getPrice() == null ? ZERO : product.getPrice();
-        int quantity = cartItem.getQuantity() == null ? 0 : cartItem.getQuantity();
-
-        return CheckoutSummaryItemResponse.builder()
-                .itemId(cartItem.getId())
-                .productId(product.getId())
-                .productName(product.getName())
-                .productImage(product.getImageUrl())
-                .quantity(quantity)
-                .unitPrice(unitPrice)
-                .lineTotal(unitPrice.multiply(BigDecimal.valueOf(quantity)))
-                .build();
-    }
-
-    private String buildShippingAddress(PlaceOrderRequest request) {
-        List<String> chunks = new ArrayList<>();
-
-        if (hasText(request.getShippingAddress())) {
-            chunks.add(request.getShippingAddress().trim());
-        }
-        if (hasText(request.getDistrict())) {
-            chunks.add(request.getDistrict().trim());
-        }
-        if (hasText(request.getCity())) {
-            chunks.add(request.getCity().trim());
-        }
-        if (hasText(request.getProvince())) {
-            chunks.add(request.getProvince().trim());
-        }
-        if (hasText(request.getPostalCode())) {
-            chunks.add(request.getPostalCode().trim());
-        }
-
-        return String.join(", ", chunks);
-    }
-
-    private boolean hasText(String value) {
-        return value != null && !value.isBlank();
-    }
-
-    private PaymentMethod resolveCheckoutPaymentMethod(Cart cart) {
-        if (cart == null || cart.getSelectedPaymentMethod() == null) {
-            return null;
-        }
-
-        return CHECKOUT_PAYMENT_METHODS.contains(cart.getSelectedPaymentMethod())
-                ? cart.getSelectedPaymentMethod()
-                : null;
-    }
-
-    private PaymentMethod resolvePlaceOrderPaymentMethod(PlaceOrderRequest request, Cart cart) {
-        PaymentMethod selectedMethod = request.getPaymentMethod();
-
-        if (selectedMethod == null) {
-            selectedMethod = resolveCheckoutPaymentMethod(cart);
-        }
-
-        if (selectedMethod == null) {
-            throw new BadRequestException("Please select a payment method");
-        }
-
-        if (!CHECKOUT_PAYMENT_METHODS.contains(selectedMethod)) {
-            throw new BadRequestException("Invalid payment method. Allowed values: COD, E-payment");
-        }
-
-        return selectedMethod;
-    }
-
-    private Product validateAndLockProduct(Integer productId) {
-        return productRepository.findById(productId)
-                .orElseThrow(() -> new BadRequestException("Product unavailable"));
-    }
-
-    private void validateProductAvailability(Product product, CartItem cartItem) {
-        if (!Boolean.TRUE.equals(product.getIsActive())) {
-            throw new BadRequestException("Product unavailable");
-        }
-
-        Integer availableStock = product.getStockQuantity();
-        Integer requestedQty = cartItem.getQuantity();
-
-        if (requestedQty == null || requestedQty <= 0) {
-            throw new BadRequestException("Cart contains invalid item quantity");
-        }
-
-        if (availableStock == null || availableStock < requestedQty) {
-            throw new BadRequestException("Insufficient stock available");
-        }
+        order.setStatus(OrderStatus.CANCELLED);
+        order.setCancellationReason("Cancelled by staff");
+        order.setManagedBy(getCurrentUser());
+        orderRepository.save(order);
     }
 
     private void validateTransition(OrderStatus current, OrderStatus next) {
-        if (next == null) {
-            throw new BadRequestException("Status is required");
-        }
-
-        Set<OrderStatus> allowed = ALLOWED_STATUS_TRANSITIONS.getOrDefault(current, Set.of());
-        if (!allowed.contains(next)) {
-            throw new BadRequestException(
-                    "Invalid status transition from " + current.getValue() + " to " + next.getValue()
-            );
-        }
-    }
-
-    private List<OrderStatus> getAllowedNextStatuses(OrderStatus currentStatus) {
-        return ALLOWED_STATUS_TRANSITIONS.getOrDefault(currentStatus, Set.of())
-                .stream()
-                .toList();
-    }
-
-    private Sort resolveSort(String sortBy, String sortDir) {
-        String normalizedSortBy = sortBy == null ? "createdAt" : sortBy;
-        String safeSortBy = switch (normalizedSortBy) {
-            case "id", "status", "totalPrice", "createdAt", "updatedAt" -> normalizedSortBy;
-            default -> "createdAt";
-        };
-
-        Sort.Direction direction = "asc".equalsIgnoreCase(sortDir)
-                ? Sort.Direction.ASC
-                : Sort.Direction.DESC;
-
-        return Sort.by(direction, safeSortBy);
-    }
-
-    private Specification<Order> buildManageOrderSpecification(OrderListQuery query) {
-        return (root, criteriaQuery, criteriaBuilder) -> {
-            var predicates = criteriaBuilder.conjunction();
-
-            if (query.getStatus() != null) {
-                predicates.getExpressions().add(
-                        criteriaBuilder.equal(root.get("status"), query.getStatus())
-                );
-            }
-
-            if (query.getKeyword() != null && !query.getKeyword().isBlank()) {
-                String keyword = "%" + query.getKeyword().trim().toLowerCase(Locale.ROOT) + "%";
-                predicates.getExpressions().add(
-                        criteriaBuilder.or(
-                                criteriaBuilder.like(criteriaBuilder.lower(root.get("receiverName")), keyword),
-                                criteriaBuilder.like(criteriaBuilder.lower(root.get("phone")), keyword),
-                                criteriaBuilder.like(criteriaBuilder.lower(root.get("user").get("fullName")), keyword),
-                                criteriaBuilder.like(criteriaBuilder.lower(root.get("user").get("email")), keyword)
-                        )
-                );
-            }
-
-            return predicates;
-        };
-    }
-
-    private Specification<Order> buildCustomerOrderHistorySpecification(
-            User user,
-            CustomerOrderHistoryQuery query
-    ) {
-        return (root, criteriaQuery, criteriaBuilder) -> {
-            var predicates = criteriaBuilder.conjunction();
-
-            predicates.getExpressions().add(
-                    criteriaBuilder.equal(root.get("user").get("id"), user.getId())
-            );
-
-            if (query.getStatus() != null) {
-                predicates.getExpressions().add(
-                        criteriaBuilder.equal(root.get("status"), query.getStatus())
-                );
-            }
-
-            return predicates;
-        };
-    }
-
-    private OrderSummaryResponse toOrderSummaryResponse(Order order) {
-        Invoice invoice = invoiceRepository.findByOrder(order).orElse(null);
-        Payment payment = paymentRepository.findTopByOrderOrderByIdDesc(order).orElse(null);
-        List<OrderItem> items = orderItemRepository.findByOrder(order);
-
-        return OrderSummaryResponse.builder()
-                .id(order.getId())
-                .orderId(order.getId())
-                .orderCode(invoice != null ? invoice.getInvoiceNumber() : "ORD-" + order.getId())
-                .customerName(order.getUser() != null ? order.getUser().getFullName() : order.getReceiverName())
-                .customerEmail(order.getUser() != null ? order.getUser().getEmail() : null)
-                .customerPhone(order.getPhone())
-                .orderDate(order.getCreatedAt())
-                .orderStatus(order.getStatus())
-                .paymentStatus(payment != null ? payment.getPaymentStatus().name() : PaymentStatus.UNPAID.name())
-                .paymentMethod(
-                        payment != null && payment.getPaymentMethod() != null
-                                ? payment.getPaymentMethod().name()
-                                : null
-                )
-                .totalAmount(order.getTotalPrice() != null ? order.getTotalPrice() : ZERO)
-                .itemCount(items.size())
-                .shippingStatus(formatShippingStatus(order.getStatus()))
-                .detailPath("/account/orders/" + order.getId())
-                .updatedAt(order.getUpdatedAt())
-                .build();
-    }
-
-    private String formatShippingStatus(OrderStatus orderStatus) {
-        if (orderStatus == null) {
-            return "UNKNOWN";
-        }
-
-        return switch (orderStatus) {
-            case PENDING, CONFIRMED, PROCESSING -> "PREPARING";
-            case SHIPPED -> "IN_TRANSIT";
-            case DELIVERED, COMPLETED -> "DELIVERED";
-            case CANCELLED -> "CANCELLED";
-        };
-    }
-
-    private Order getOrderOrThrow(Integer orderId) {
-        return orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
-    }
-
-    private void validateCustomerOwnsOrder(User user, Order order) {
-        if (order.getUser() == null || !order.getUser().getId().equals(user.getId())) {
-            throw new ForbiddenException("You are not allowed to cancel this order");
-        }
-    }
-
-    private void validateOrderCanBeCancelledByCustomer(Order order) {
-        if (order.getStatus() == null || CUSTOMER_NON_CANCELLABLE_STATUSES.contains(order.getStatus())) {
-            throw new BadRequestException("Order cannot be cancelled");
+        if (current == OrderStatus.CANCELLED || current == OrderStatus.COMPLETED) {
+            throw new BadRequestException("Invalid status transition from " + current + " to " + next);
         }
     }
 
@@ -745,40 +213,5 @@ public class OrderServiceImpl implements OrderService {
         String email = SecurityUtil.getCurrentUsername();
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Current user not found"));
-    }
-
-    private static Map<OrderStatus, Set<OrderStatus>> buildAllowedTransitions() {
-        Map<OrderStatus, Set<OrderStatus>> transitions = new EnumMap<>(OrderStatus.class);
-
-        transitions.put(
-                OrderStatus.PENDING,
-                EnumSet.of(OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.CANCELLED)
-        );
-        transitions.put(
-                OrderStatus.CONFIRMED,
-                EnumSet.of(OrderStatus.CONFIRMED, OrderStatus.PROCESSING, OrderStatus.CANCELLED)
-        );
-        transitions.put(
-                OrderStatus.PROCESSING,
-                EnumSet.of(OrderStatus.PROCESSING, OrderStatus.SHIPPED, OrderStatus.CANCELLED)
-        );
-        transitions.put(
-                OrderStatus.SHIPPED,
-                EnumSet.of(OrderStatus.SHIPPED, OrderStatus.DELIVERED)
-        );
-        transitions.put(
-                OrderStatus.DELIVERED,
-                EnumSet.of(OrderStatus.DELIVERED, OrderStatus.COMPLETED)
-        );
-        transitions.put(
-                OrderStatus.COMPLETED,
-                EnumSet.of(OrderStatus.COMPLETED)
-        );
-        transitions.put(
-                OrderStatus.CANCELLED,
-                EnumSet.of(OrderStatus.CANCELLED)
-        );
-
-        return transitions;
     }
 }

@@ -32,6 +32,11 @@ public class AdminUserController {
         return ApiResponse.success("Customer accounts fetched successfully", userService.getCustomerAccounts());
     }
 
+    @GetMapping("/{userId}")
+    public ApiResponse<UserResponse> getUserById(@PathVariable Integer userId) {
+        return ApiResponse.success("User fetched successfully", userService.getUserById(userId));
+    }
+
     @DeleteMapping("/{userId}")
     public ApiResponse<Void> deactivateUser(@PathVariable Integer userId) {
         userService.deactivateUser(userId);

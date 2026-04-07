@@ -18,4 +18,5 @@ public class InvoiceResponse {
     private String note;
     private InvoicePaymentStatus paymentStatus;
     private LocalDateTime issuedAt;
+    private String customerName;
 }

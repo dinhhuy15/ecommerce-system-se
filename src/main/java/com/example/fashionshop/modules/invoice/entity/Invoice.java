@@ -55,7 +55,7 @@ public class Invoice {
             totalAmount = BigDecimal.ZERO;
         }
         if (paymentStatus == null) {
-            paymentStatus = InvoicePaymentStatus.PENDING;
+            paymentStatus = InvoicePaymentStatus.UNPAID;
         }
     }
 }

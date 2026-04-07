@@ -23,11 +23,6 @@ public class CartController {
         return ApiResponse.success("Cart fetched successfully", cartService.getMyCart());
     }
 
-    @GetMapping("/summary")
-    public ApiResponse<Integer> getMyCartItemCount() {
-        return ApiResponse.success("Cart item count fetched successfully", cartService.getMyCart().getTotalItems());
-    }
-
     @PostMapping("/items")
     public ApiResponse<CartResponse> addToCart(@Valid @RequestBody AddToCartRequest request) {
         return ApiResponse.success("Added to cart successfully", cartService.addToCart(request));
@@ -36,17 +31,11 @@ public class CartController {
     @PutMapping("/items/{itemId}")
     public ApiResponse<CartResponse> updateCartItem(@PathVariable Integer itemId,
                                                     @Valid @RequestBody UpdateCartItemRequest request) {
-        return ApiResponse.success("Cart item updated successfully", cartService.updateCartItemQuantity(itemId, request));
-    }
-
-    @PutMapping("/items/{itemId}/quantity")
-    public ApiResponse<CartResponse> updateCartItemQuantity(@PathVariable Integer itemId,
-                                                            @Valid @RequestBody UpdateCartItemRequest request) {
-        return ApiResponse.success("Cart item updated successfully", cartService.updateCartItemQuantity(itemId, request));
+        return ApiResponse.success("Cart item updated successfully", cartService.updateCartItem(itemId, request));
     }
 
     @DeleteMapping("/items/{itemId}")
     public ApiResponse<CartResponse> removeCartItem(@PathVariable Integer itemId) {
-        return ApiResponse.success("Item removed from cart", cartService.removeCartItem(itemId));
+        return ApiResponse.success("Cart item removed successfully", cartService.removeCartItem(itemId));
     }
 }

@@ -40,21 +40,15 @@ public class Order {
     @Column(name = "shipping_address", length = 255)
     private String shippingAddress;
 
-    @Column(name = "customer_note", length = 500)
-    private String customerNote;
-
-    @Column(name = "cancellation_reason", length = 500)
-    private String cancellationReason;
-
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
-
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "managed_by")
     private User managedBy;
+
+    @Column(name = "cancellation_reason", length = 255)
+    private String cancellationReason;
 
     @PrePersist
     public void prePersist() {
@@ -64,11 +58,5 @@ public class Order {
         if (status == null) {
             status = OrderStatus.PENDING;
         }
-        updatedAt = createdAt;
-    }
-
-    @PreUpdate
-    public void preUpdate() {
-        updatedAt = LocalDateTime.now();
     }
 }

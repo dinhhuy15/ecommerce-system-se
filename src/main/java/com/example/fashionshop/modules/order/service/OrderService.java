@@ -1,44 +1,31 @@
 package com.example.fashionshop.modules.order.service;
 
-import com.example.fashionshop.common.response.PaginationResponse;
 import com.example.fashionshop.modules.order.dto.CancelOrderRequest;
-import com.example.fashionshop.modules.order.dto.CancelOrderResponse;
-import com.example.fashionshop.modules.order.dto.CheckoutSummaryResponse;
-import com.example.fashionshop.modules.order.dto.CustomerOrderHistoryQuery;
-import com.example.fashionshop.modules.order.dto.OrderDetailResponse;
-import com.example.fashionshop.modules.order.dto.OrderListQuery;
 import com.example.fashionshop.modules.order.dto.OrderResponse;
-import com.example.fashionshop.modules.order.dto.OrderSummaryResponse;
-import com.example.fashionshop.modules.order.dto.OrderStatusTrackingResponse;
 import com.example.fashionshop.modules.order.dto.PlaceOrderRequest;
-import com.example.fashionshop.modules.order.dto.UpdateCheckoutPaymentMethodRequest;
 import com.example.fashionshop.modules.order.dto.UpdateOrderStatusRequest;
-import com.example.fashionshop.modules.order.dto.UpdateOrderStatusResponse;
+import com.example.fashionshop.modules.order.dto.OrderStatusResponse;
 
 import java.util.List;
 
 public interface OrderService {
-    CheckoutSummaryResponse getCheckoutSummary();
-
-    CheckoutSummaryResponse updateCheckoutPaymentMethod(UpdateCheckoutPaymentMethodRequest request);
-
     OrderResponse placeOrder(PlaceOrderRequest request);
 
     List<OrderResponse> getMyOrders();
 
-    PaginationResponse<OrderSummaryResponse> getMyOrderHistory(CustomerOrderHistoryQuery query);
+    OrderResponse getMyOrderDetail(Integer orderId);
 
-    OrderDetailResponse getMyOrderDetail(Integer orderId);
+    void cancelMyOrder(Integer orderId);
 
-    OrderStatusTrackingResponse getMyOrderTrackingStatus(Integer orderId);
+    void cancelOrder(Integer orderId, CancelOrderRequest request);
 
-    CancelOrderResponse cancelMyOrder(Integer orderId, CancelOrderRequest request);
+    OrderStatusResponse trackOrderStatus(Integer orderId);
 
     List<OrderResponse> getAllOrders();
 
-    PaginationResponse<OrderSummaryResponse> getManageOrderSummaries(OrderListQuery query);
+    OrderResponse getOrderDetail(Integer orderId);
 
-    OrderDetailResponse getOrderDetail(Integer orderId);
+    OrderResponse updateOrderStatus(Integer orderId, UpdateOrderStatusRequest request);
 
-    UpdateOrderStatusResponse updateOrderStatus(Integer orderId, UpdateOrderStatusRequest request);
+    void cancelOrderByStaff(Integer orderId);
 }
