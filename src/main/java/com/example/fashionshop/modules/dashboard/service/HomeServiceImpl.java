@@ -12,6 +12,7 @@ import com.example.fashionshop.modules.dashboard.repository.BannerRepository;
 import com.example.fashionshop.modules.product.entity.Product;
 import com.example.fashionshop.modules.product.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,19 +31,19 @@ public class HomeServiceImpl implements HomeService {
     public HomeResponseDto getHomeData() {
         try {
             List<HomeProductDto> featuredProducts = productRepository
-                    .findTop8ByIsFeaturedTrueAndIsActiveTrueOrderByCreatedAtDesc()
+                    .findTop8FeaturedActiveWithCategory(PageRequest.of(0, 8))
                     .stream()
                     .map(this::toHomeProduct)
                     .toList();
 
             List<HomeCategoryDto> categories = categoryRepository
-                    .findByIsActiveTrueOrderByNameAsc()
+                    .findTop8ByIsActiveTrueOrderByNameAsc()
                     .stream()
                     .map(this::toHomeCategory)
                     .toList();
 
             List<HomeBannerDto> banners = bannerRepository
-                    .findByIsActiveTrueOrderByDisplayOrderAsc()
+                    .findTop5ByIsActiveTrueOrderByDisplayOrderAsc()
                     .stream()
                     .map(this::toHomeBanner)
                     .toList();

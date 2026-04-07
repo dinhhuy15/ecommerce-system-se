@@ -4,6 +4,7 @@ import com.example.fashionshop.common.enums.Role;
 import com.example.fashionshop.common.exception.AccountCreationException;
 import com.example.fashionshop.common.exception.AuthenticationSystemException;
 import com.example.fashionshop.common.exception.BadRequestException;
+import com.example.fashionshop.common.exception.UnauthorizedException;
 import com.example.fashionshop.modules.auth.dto.AuthResponse;
 import com.example.fashionshop.modules.auth.dto.LoginRequest;
 import com.example.fashionshop.modules.auth.dto.RegisterRequest;
@@ -19,6 +20,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 @Service
@@ -33,6 +35,7 @@ public class AuthServiceImpl implements AuthService {
     private final TokenBlacklistService tokenBlacklistService;
 
     @Override
+    @Transactional
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new BadRequestException("Email already exists");
@@ -82,7 +85,7 @@ public class AuthServiceImpl implements AuthService {
                     .role(user.getRole())
                     .build();
         } catch (AuthenticationException ex) {
-            throw new BadRequestException("Invalid email or password");
+            throw new UnauthorizedException("Invalid email or password");
         } catch (Exception ex) {
             throw new AuthenticationSystemException("Login failed, please try again later");
         }

@@ -171,7 +171,7 @@ public class OrderController {
     @GetMapping("/{orderId}")
     @PreAuthorize("hasAnyRole('STAFF','ADMIN')")
     public ApiResponse<OrderDetailResponse> orderDetailById(
-            @PathVariable @Positive Integer orderId) {
+            @PathVariable @Positive(message = "Invalid order id") Integer orderId) {
 
         return ApiResponse.success(
                 "Order detail fetched successfully",

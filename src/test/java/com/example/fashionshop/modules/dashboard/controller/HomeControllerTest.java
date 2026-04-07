@@ -25,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @WebMvcTest(HomeController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import(com.example.fashionshop.common.exception.GlobalExceptionHandler.class)
+@Import({com.example.fashionshop.common.exception.GlobalExceptionHandler.class, com.example.fashionshop.config.TestSecurityConfig.class})
 class HomeControllerTest {
 
     @Autowired
@@ -39,7 +39,7 @@ class HomeControllerTest {
         HomeResponseDto homeResponse = HomeResponseDto.builder()
                 .featuredProducts(List.of(
                         HomeProductDto.builder()
-                                .id(1L)
+                                .id(1)
                                 .name("Featured Jacket")
                                 .description("Top-selling jacket")
                                 .price(new BigDecimal("89.99"))
@@ -48,14 +48,14 @@ class HomeControllerTest {
                                 .build()))
                 .categories(List.of(
                         HomeCategoryDto.builder()
-                                .id(10L)
+                                .id(10)
                                 .name("Outerwear")
                                 .description("Jackets and coats")
                                 .imageUrl("https://cdn.example.com/c1.jpg")
                                 .build()))
                 .banners(List.of(
                         HomeBannerDto.builder()
-                                .id(100L)
+                                .id(100)
                                 .title("Spring Sale")
                                 .imageUrl("https://cdn.example.com/b1.jpg")
                                 .linkUrl("/sale")

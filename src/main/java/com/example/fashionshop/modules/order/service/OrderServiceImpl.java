@@ -61,6 +61,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -222,6 +223,7 @@ public class OrderServiceImpl implements OrderService {
 
             BigDecimal subtotal = ZERO;
             List<CartItem> validItems = new ArrayList<>();
+            Map<Integer, Product> validatedProducts = new HashMap<>();
 
             for (CartItem cartItem : cartItems) {
                 Product product = validateAndLockProduct(cartItem.getProduct().getId());
@@ -231,6 +233,7 @@ public class OrderServiceImpl implements OrderService {
                         .multiply(BigDecimal.valueOf(cartItem.getQuantity()));
                 subtotal = subtotal.add(lineTotal);
                 validItems.add(cartItem);
+                validatedProducts.put(product.getId(), product);
             }
 
             BigDecimal finalTotal = subtotal.add(DEFAULT_SHIPPING_FEE).subtract(DEFAULT_DISCOUNT);
@@ -246,8 +249,7 @@ public class OrderServiceImpl implements OrderService {
                     .build());
 
             for (CartItem cartItem : validItems) {
-                Product product = validateAndLockProduct(cartItem.getProduct().getId());
-                validateProductAvailability(product, cartItem);
+                Product product = validatedProducts.get(cartItem.getProduct().getId());
 
                 product.setStockQuantity(product.getStockQuantity() - cartItem.getQuantity());
                 productRepository.save(product);

@@ -2,10 +2,10 @@ package com.example.fashionshop.common.exception;
 
 public class OrderDetailLoadException extends RuntimeException {
     public OrderDetailLoadException() {
-        super("Unable to load order details");
+        super("Failed to retrieve order details");
     }
 
     public OrderDetailLoadException(Throwable cause) {
-        super("Unable to load order details", cause);
+        super("Failed to retrieve order details", cause);
     }
 }

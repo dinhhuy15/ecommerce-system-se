@@ -1,35 +1,37 @@
 package com.example.fashionshop.security.jwt;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
+@RequiredArgsConstructor
 public class TokenBlacklistService {
 
-    private final Map<String, Date> blacklistedTokens = new ConcurrentHashMap<>();
+    private final BlacklistedTokenRepository blacklistedTokenRepository;
 
+    @Transactional
     public void blacklistToken(String token, Date expiry) {
         if (token == null || token.isBlank() || expiry == null) {
             return;
         }
-        cleanupExpiredTokens();
-        blacklistedTokens.put(token, expiry);
+        blacklistedTokenRepository.deleteExpiredTokens(new Date());
+        if (!blacklistedTokenRepository.existsByToken(token)) {
+            blacklistedTokenRepository.save(
+                    BlacklistedToken.builder().token(token).expiryAt(expiry).build()
+            );
+        }
     }
 
+    @Transactional(readOnly = true)
     public boolean isBlacklisted(String token) {
         if (token == null || token.isBlank()) {
             return false;
         }
-        cleanupExpiredTokens();
-        Date expiry = blacklistedTokens.get(token);
-        return expiry != null && expiry.after(new Date());
-    }
-
-    private void cleanupExpiredTokens() {
-        Date now = new Date();
-        blacklistedTokens.entrySet().removeIf(entry -> !entry.getValue().after(now));
+        return blacklistedTokenRepository.findByToken(token)
+                .map(bt -> bt.getExpiryAt().after(new Date()))
+                .orElse(false);
     }
 }

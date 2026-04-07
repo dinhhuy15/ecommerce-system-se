@@ -4,6 +4,7 @@ import com.example.fashionshop.common.enums.Role;
 import com.example.fashionshop.common.exception.AccountCreationException;
 import com.example.fashionshop.common.exception.AuthenticationSystemException;
 import com.example.fashionshop.common.exception.BadRequestException;
+import com.example.fashionshop.common.exception.UnauthorizedException;
 import com.example.fashionshop.modules.auth.dto.AuthResponse;
 import com.example.fashionshop.modules.auth.dto.LoginRequest;
 import com.example.fashionshop.modules.auth.dto.RegisterRequest;
@@ -128,7 +129,7 @@ class AuthServiceImplTest {
     }
 
     @Test
-    void loginShouldThrowBadRequestWhenCredentialsAreInvalid() {
+    void loginShouldThrowUnauthorizedWhenCredentialsAreInvalid() {
         LoginRequest request = new LoginRequest();
         request.setEmail("wrong@test.com");
         request.setPassword("wrong-password");
@@ -136,7 +137,7 @@ class AuthServiceImplTest {
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
                 .thenThrow(new BadCredentialsException("Bad credentials"));
 
-        BadRequestException exception = assertThrows(BadRequestException.class, () -> authService.login(request));
+        UnauthorizedException exception = assertThrows(UnauthorizedException.class, () -> authService.login(request));
 
         assertEquals("Invalid email or password", exception.getMessage());
     }

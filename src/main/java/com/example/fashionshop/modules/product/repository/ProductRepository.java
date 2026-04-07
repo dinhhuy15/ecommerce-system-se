@@ -42,7 +42,9 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
             """)
     Page<Product> searchActiveProductsByKeyword(@Param("keyword") String keyword, Pageable pageable);
 
-    List<Product> findTop8ByIsFeaturedTrueAndIsActiveTrueOrderByCreatedAtDesc();
+    @Query("SELECT p FROM Product p JOIN FETCH p.category WHERE p.isFeatured = true AND p.isActive = true ORDER BY p.createdAt DESC")
+    List<Product> findTop8FeaturedActiveWithCategory(Pageable pageable);
+
 
     Optional<Product> findByIdAndIsActiveTrue(Integer id);
 }

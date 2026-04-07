@@ -69,7 +69,7 @@ public class PaymentServiceImpl implements PaymentService {
             Payment payment = paymentRepository.save(Payment.builder()
                     .order(order)
                     .paymentMethod(PaymentMethod.COD)
-                    .paymentStatus(PaymentStatus.UNPAID)
+                    .paymentStatus(PaymentStatus.PENDING)
                     .idempotencyKey(idempotencyKey)
                     .build());
 
@@ -77,7 +77,7 @@ public class PaymentServiceImpl implements PaymentService {
             orderRepository.save(order);
             updateInvoiceStatus(order, InvoicePaymentStatus.PENDING);
 
-            return toResponse(payment, order, "Order confirmed with COD", false, null);
+            return toResponse(payment, order, "Order confirmed with cash on delivery", false, null);
         }
 
         // Gateway flow
@@ -140,10 +140,29 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
+    // ================= MISSING INTERFACE METHODS =================
+    @Override
+    public PaymentResponse getPaymentStatus(Integer orderId) {
+        User user = getCurrentUser();
+        Order order = getOwnedOrderOrThrow(orderId, user.getId());
+        Payment payment = paymentRepository.findTopByOrderOrderByIdDesc(order)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found for order " + orderId));
+        return toResponse(payment, order, "Payment status fetched", false, null);
+    }
+
+    @Override
+    public PaymentResponse processPayment(PaymentRequest request) {
+        throw new UnsupportedOperationException("Deprecated: use processPayment(Integer orderId, PaymentRequest) instead");
+    }
+
     // ================= HELPERS =================
     private void validateOrderEligibility(Order order) {
         if (order.getStatus() == OrderStatus.CANCELLED) {
             throw new BadRequestException("Cancelled order cannot be paid");
+        }
+
+        if (order.getCreatedAt().plusMinutes(ORDER_PAYMENT_TTL_MINUTES).isBefore(LocalDateTime.now())) {
+            throw new BadRequestException("Checkout session has expired");
         }
 
         boolean alreadyPaid = paymentRepository.existsByOrderAndPaymentStatusIn(
@@ -182,8 +201,12 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     private Order getOwnedOrderOrThrow(Integer orderId, Integer userId) {
-        return orderRepository.findByIdAndUserId(orderId, userId)
-                .orElseThrow(() -> new ForbiddenException("Access denied"));
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+        if (!order.getUser().getId().equals(userId)) {
+            throw new ForbiddenException("Access denied");
+        }
+        return order;
     }
 
     private String normalizeIdempotencyKey(String key) {

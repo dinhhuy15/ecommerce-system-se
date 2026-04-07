@@ -47,7 +47,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserResponse updateMyProfile(UpdateProfileRequest request) {
-        User user = getCurrentUser();
+        User user = getCurrentAuthenticatedUser();
         String normalizedEmail = normalizeRequired(request.getEmail());
 
         if (userRepository.existsByEmailAndIdNot(normalizedEmail, user.getId())) {
@@ -80,7 +80,7 @@ public class UserServiceImpl implements UserService {
                     .personalInfo(CustomerProfileResponse.PersonalInfo.builder()
                             .fullName(user.getFullName())
                             .email(user.getEmail())
-                            .phoneNumber(latestOrder != null ? latestOrder.getPhone() : null)
+                            .phoneNumber(user.getPhoneNumber())
                             .dateOfBirth(null)
                             .gender(null)
                             .build())
@@ -275,6 +275,8 @@ public class UserServiceImpl implements UserService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
     private User getCurrentCustomerUser() {
         User user = getCurrentAuthenticatedUser();
         if (user.getRole() != Role.CUSTOMER) {
