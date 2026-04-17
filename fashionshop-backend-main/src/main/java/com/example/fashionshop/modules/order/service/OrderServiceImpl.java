@@ -523,14 +523,17 @@ public class OrderServiceImpl implements OrderService {
 
     private CheckoutSummaryItemResponse toCheckoutItem(CartItem cartItem) {
         Product product = cartItem.getProduct();
+        if (product == null) {
+            throw new BadRequestException("Cart contains invalid product (product not found).");
+        }
         BigDecimal unitPrice = product.getPrice() == null ? ZERO : product.getPrice();
         int quantity = cartItem.getQuantity() == null ? 0 : cartItem.getQuantity();
 
         return CheckoutSummaryItemResponse.builder()
                 .itemId(cartItem.getId())
                 .productId(product.getId())
-                .productName(product.getName())
-                .productImage(product.getImageUrl())
+                .productName(product.getName() != null ? product.getName() : "Unknown")
+                .productImage(product.getImageUrl() != null ? product.getImageUrl() : "")
                 .quantity(quantity)
                 .unitPrice(unitPrice)
                 .lineTotal(unitPrice.multiply(BigDecimal.valueOf(quantity)))
