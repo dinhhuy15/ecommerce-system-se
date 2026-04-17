@@ -246,7 +246,7 @@ CREATE TABLE `products` (
 
 LOCK TABLES `products` WRITE;
 /*!40000 ALTER TABLE `products` DISABLE KEYS */;
-INSERT INTO `products` VALUES (1,1,'Basic White T-Shirt','Cotton 100%',19.99,NULL,'2026-03-03 14:37:08',NULL,0,1),(2,2,'Slim Fit Jeans','Blue denim jeans',49.99,NULL,'2026-03-03 14:37:08',NULL,0,1),(3,3,'Winter Jacket','Waterproof jacket',89.99,NULL,'2026-03-03 14:37:08',NULL,0,1);
+INSERT INTO `products` VALUES (1,1,'Basic White T-Shirt','Cotton 100%',19.99,NULL,'2026-03-03 14:37:08',NULL,50,1),(2,2,'Slim Fit Jeans','Blue denim jeans',49.99,NULL,'2026-03-03 14:37:08',NULL,30,1),(3,3,'Winter Jacket','Waterproof jacket',89.99,NULL,'2026-03-03 14:37:08',NULL,20,1);
 /*!40000 ALTER TABLE `products` ENABLE KEYS */;
 UNLOCK TABLES;
 

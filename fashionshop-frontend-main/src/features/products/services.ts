@@ -6,6 +6,35 @@ import { allMockProducts, getMockProduct, addMockProduct } from '@/data/mock-dat
 // TODO: Remove mock helpers once the real backend is available
 const USE_MOCK = false;
 
+// ---------------------------------------------------------------------------
+// Normalizers: bridge backend field names → frontend Product type
+// ---------------------------------------------------------------------------
+
+/** Normalize a manage-endpoint product (ProductManageSummaryResponse / ProductManageUpdateResponse) */
+function normalizeManageProduct(raw: any): Product {
+  return {
+    ...raw,
+    imageUrl: raw.imageUrl ?? raw.thumbnailUrl ?? undefined,
+    stock: raw.stock ?? raw.stockQuantity ?? 0,
+    stockQuantity: raw.stockQuantity ?? raw.stock ?? 0,
+  };
+}
+
+/** Normalize a store product detail (StoreProductDetailResponse) */
+function normalizeStoreProductDetail(raw: any): Product {
+  const mainImg = raw.mainImageUrl ?? raw.imageUrl ?? undefined;
+  return {
+    ...raw,
+    imageUrl: mainImg,
+    images: raw.images?.length ? raw.images : (mainImg ? [{ url: mainImg }] : []),
+    colors: raw.colors ?? raw.colorOptions ?? [],
+    sizes: raw.sizes ?? raw.sizeOptions ?? [],
+    stock: raw.stock ?? raw.stockQuantity ?? 0,
+    stockQuantity: raw.stockQuantity ?? raw.stock ?? 0,
+    compareAtPrice: raw.compareAtPrice ?? raw.originalPrice ?? undefined,
+  };
+}
+
 export async function fetchProducts(filter?: ProductFilter) {
   if (USE_MOCK) {
     let filteredItems = [...allMockProducts];
@@ -123,14 +152,17 @@ export async function fetchManageProducts(filter?: ProductFilter) {
       size,
     };
   }
-  const response = await api.get<ApiResponse<ApiListResponse<Product>>>('/api/products/manage', { params: filter });
-  return apiRequest(Promise.resolve(response));
+  const response = await api.get<ApiResponse<any>>('/api/products/manage', { params: filter });
+  const raw = await apiRequest(Promise.resolve(response));
+  if (raw && Array.isArray(raw.items)) return { ...raw, items: raw.items.map(normalizeManageProduct) };
+  return raw;
 }
 
 export async function fetchManageProduct(id: string) {
   if (USE_MOCK) return getMockProduct(id);
-  const response = await api.get<ApiResponse<Product>>(`/api/products/manage/${id}`);
-  return apiRequest(Promise.resolve(response));
+  const response = await api.get<ApiResponse<any>>(`/api/products/manage/${id}`);
+  const raw = await apiRequest(Promise.resolve(response));
+  return normalizeManageProduct(raw);
 }
 
 export async function updateManageProduct(id: string, request: UpsertProductRequest) {
@@ -190,6 +222,7 @@ export async function fetchStoreProducts(filter?: ProductFilter): Promise<StoreP
 
 export async function fetchStoreProduct(idOrSlug: string) {
   if (USE_MOCK) return getMockProduct(idOrSlug);
-  const response = await api.get<ApiResponse<Product>>(`/api/store/products/${idOrSlug}`);
-  return apiRequest(Promise.resolve(response));
+  const response = await api.get<ApiResponse<any>>(`/api/store/products/${idOrSlug}`);
+  const raw = await apiRequest(Promise.resolve(response));
+  return normalizeStoreProductDetail(raw);
 }

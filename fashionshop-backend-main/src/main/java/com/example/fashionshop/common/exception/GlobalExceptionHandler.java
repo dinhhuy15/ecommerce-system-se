@@ -1,3 +1,9 @@
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+
+    @ExceptionHandler(UsernameNotFoundException.class)
+    public ResponseEntity<ApiResponse<Object>> handleUsernameNotFound(UsernameNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error(ex.getMessage()));
+    }
 package com.example.fashionshop.common.exception;
 
 import com.example.fashionshop.common.response.ApiResponse;
