@@ -83,16 +83,13 @@ public class OrderServiceImpl implements OrderService {
     private static final BigDecimal DEFAULT_DISCOUNT = ZERO;
     private static final List<PaymentMethod> CHECKOUT_PAYMENT_METHODS = List.of(
             PaymentMethod.COD,
-            PaymentMethod.BANKING
-    );
+            PaymentMethod.BANKING);
 
-    private static final Set<OrderStatus> CUSTOMER_NON_CANCELLABLE_STATUSES =
-            EnumSet.of(
-                    OrderStatus.SHIPPED,
-                    OrderStatus.DELIVERED,
-                    OrderStatus.COMPLETED,
-                    OrderStatus.CANCELLED
-            );
+    private static final Set<OrderStatus> CUSTOMER_NON_CANCELLABLE_STATUSES = EnumSet.of(
+            OrderStatus.SHIPPED,
+            OrderStatus.DELIVERED,
+            OrderStatus.COMPLETED,
+            OrderStatus.CANCELLED);
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
@@ -105,6 +102,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderEventPublisher orderEventPublisher;
 
     @Override
+    @Transactional(readOnly = true)
     public CheckoutSummaryResponse getCheckoutSummary() {
         User user = getCurrentUser();
         Cart cart = cartRepository.findByUser(user).orElse(null);
@@ -294,14 +292,12 @@ public class OrderServiceImpl implements OrderService {
                     OrderEventType.ORDER_PLACED,
                     order.getId(),
                     user.getId(),
-                    "Order #" + order.getId() + " placed successfully"
-            ));
+                    "Order #" + order.getId() + " placed successfully"));
 
             return OrderMapper.toResponse(
                     order,
                     orderItemRepository.findByOrder(order),
-                    paymentRepository.findTopByOrderOrderByIdDesc(order)
-            );
+                    paymentRepository.findTopByOrderOrderByIdDesc(order));
         } catch (BadRequestException | ResourceNotFoundException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -310,18 +306,19 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<OrderResponse> getMyOrders() {
         User user = getCurrentUser();
         return orderRepository.findByUser(user).stream()
                 .map(order -> OrderMapper.toResponse(
                         order,
                         orderItemRepository.findByOrder(order),
-                        paymentRepository.findTopByOrderOrderByIdDesc(order)
-                ))
+                        paymentRepository.findTopByOrderOrderByIdDesc(order)))
                 .toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public PaginationResponse<OrderSummaryResponse> getMyOrderHistory(CustomerOrderHistoryQuery query) {
         User user = getCurrentUser();
 
@@ -329,13 +326,11 @@ public class OrderServiceImpl implements OrderService {
             Pageable pageable = PageRequest.of(
                     query.getPage(),
                     query.getSize(),
-                    resolveSort(query.getSortBy(), query.getSortDir())
-            );
+                    resolveSort(query.getSortBy(), query.getSortDir()));
 
             Page<Order> orderPage = orderRepository.findAll(
                     buildCustomerOrderHistorySpecification(user, query),
-                    pageable
-            );
+                    pageable);
 
             List<OrderSummaryResponse> items = orderPage.getContent().stream()
                     .map(this::toOrderSummaryResponse)
@@ -356,6 +351,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public OrderDetailResponse getMyOrderDetail(Integer orderId) {
         try {
             User user = getCurrentUser();
@@ -370,6 +366,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public OrderStatusTrackingResponse getMyOrderTrackingStatus(Integer orderId) {
         try {
             User user = getCurrentUser();
@@ -413,25 +410,25 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<OrderResponse> getAllOrders() {
         return orderRepository.findAll().stream()
                 .map(order -> OrderMapper.toResponse(
                         order,
                         orderItemRepository.findByOrder(order),
-                        paymentRepository.findTopByOrderOrderByIdDesc(order)
-                ))
+                        paymentRepository.findTopByOrderOrderByIdDesc(order)))
                 .toList();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public PaginationResponse<OrderSummaryResponse> getManageOrderSummaries(OrderListQuery query) {
         try {
             Sort sort = resolveSort(query.getSortBy(), query.getSortDir());
             PageRequest pageRequest = PageRequest.of(query.getPage(), query.getSize(), sort);
             Page<Order> orderPage = orderRepository.findAll(
                     buildManageOrderSpecification(query),
-                    pageRequest
-            );
+                    pageRequest);
 
             List<OrderSummaryResponse> items = orderPage.getContent().stream()
                     .map(this::toOrderSummaryResponse)
@@ -452,6 +449,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public OrderDetailResponse getOrderDetail(Integer orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
@@ -496,8 +494,7 @@ public class OrderServiceImpl implements OrderService {
                     order,
                     orderItemRepository.findByOrder(order),
                     invoiceRepository.findByOrder(order),
-                    paymentRepository.findTopByOrderOrderByIdDesc(order)
-            );
+                    paymentRepository.findTopByOrderOrderByIdDesc(order));
         } catch (ResourceNotFoundException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -626,8 +623,7 @@ public class OrderServiceImpl implements OrderService {
         // State Pattern: delegate transition validation to the current-state object
         if (!OrderStateFactory.of(current).canTransitionTo(next)) {
             throw new BadRequestException(
-                    "Invalid status transition from " + current.getValue() + " to " + next.getValue()
-            );
+                    "Invalid status transition from " + current.getValue() + " to " + next.getValue());
         }
     }
 
@@ -656,8 +652,7 @@ public class OrderServiceImpl implements OrderService {
 
             if (query.getStatus() != null) {
                 predicates.getExpressions().add(
-                        criteriaBuilder.equal(root.get("status"), query.getStatus())
-                );
+                        criteriaBuilder.equal(root.get("status"), query.getStatus()));
             }
 
             if (query.getKeyword() != null && !query.getKeyword().isBlank()) {
@@ -667,9 +662,7 @@ public class OrderServiceImpl implements OrderService {
                                 criteriaBuilder.like(criteriaBuilder.lower(root.get("receiverName")), keyword),
                                 criteriaBuilder.like(criteriaBuilder.lower(root.get("phone")), keyword),
                                 criteriaBuilder.like(criteriaBuilder.lower(root.get("user").get("fullName")), keyword),
-                                criteriaBuilder.like(criteriaBuilder.lower(root.get("user").get("email")), keyword)
-                        )
-                );
+                                criteriaBuilder.like(criteriaBuilder.lower(root.get("user").get("email")), keyword)));
             }
 
             return predicates;
@@ -678,19 +671,16 @@ public class OrderServiceImpl implements OrderService {
 
     private Specification<Order> buildCustomerOrderHistorySpecification(
             User user,
-            CustomerOrderHistoryQuery query
-    ) {
+            CustomerOrderHistoryQuery query) {
         return (root, criteriaQuery, criteriaBuilder) -> {
             var predicates = criteriaBuilder.conjunction();
 
             predicates.getExpressions().add(
-                    criteriaBuilder.equal(root.get("user").get("id"), user.getId())
-            );
+                    criteriaBuilder.equal(root.get("user").get("id"), user.getId()));
 
             if (query.getStatus() != null) {
                 predicates.getExpressions().add(
-                        criteriaBuilder.equal(root.get("status"), query.getStatus())
-                );
+                        criteriaBuilder.equal(root.get("status"), query.getStatus()));
             }
 
             return predicates;
@@ -715,8 +705,7 @@ public class OrderServiceImpl implements OrderService {
                 .paymentMethod(
                         payment != null && payment.getPaymentMethod() != null
                                 ? payment.getPaymentMethod().name()
-                                : null
-                )
+                                : null)
                 .totalAmount(order.getTotalPrice() != null ? order.getTotalPrice() : ZERO)
                 .itemCount(items.size())
                 .shippingStatus(formatShippingStatus(order.getStatus()))
@@ -760,6 +749,5 @@ public class OrderServiceImpl implements OrderService {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Current user not found"));
     }
-
 
 }
