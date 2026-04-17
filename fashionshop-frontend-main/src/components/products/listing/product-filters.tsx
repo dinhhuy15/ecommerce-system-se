@@ -2,17 +2,18 @@ import { cn } from '@/lib/utils/cn';
 import type { ProductCategory } from './types';
 
 type ProductFiltersProps = {
-  selectedCategory: ProductCategory | 'All Products';
+  selectedCategory: string;
   selectedSize: string;
   selectedColor: string;
   priceRange: number;
-  onCategoryChange: (value: ProductCategory | 'All Products') => void;
+  onCategoryChange: (value: string) => void;
   onSizeChange: (value: string) => void;
   onColorChange: (value: string) => void;
   onPriceChange: (value: number) => void;
+  categories?: string[];
 };
 
-const categoryOptions: Array<ProductCategory | 'All Products'> = ['All Products', 'Outerwear', 'Tailoring', 'Knitwear', 'Accessories'];
+const defaultCategoryOptions = ['All Products', 'Outerwear', 'Tailoring', 'Knitwear', 'Accessories'];
 const sizeOptions = ['XS', 'S', 'M', 'L', 'XL'];
 const colorOptions = [
   { id: 'black', label: 'Black', swatch: '#0b0b0c' },
@@ -31,7 +32,9 @@ export function ProductFilters({
   onSizeChange,
   onColorChange,
   onPriceChange,
+  categories,
 }: ProductFiltersProps) {
+  const categoryOptions = categories ? ['All Products', ...categories] : defaultCategoryOptions;
   return (
     <aside className="w-full border-b border-zinc-200 pb-8 lg:w-[250px] lg:border-b-0 lg:pb-0">
       <div className="space-y-8">

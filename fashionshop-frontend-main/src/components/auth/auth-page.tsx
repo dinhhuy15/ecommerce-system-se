@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { AuthTabs, type AuthTab } from './auth-tabs';
 import { LoginForm, type LoginErrors, type LoginValues } from './login-form';
 import { RegisterForm, type RegisterErrors, type RegisterValues } from './register-form';
+import { useLoginMutation, useRegisterMutation } from '@/features/auth/hooks';
 
 type AuthPageProps = {
   initialTab?: AuthTab;
@@ -33,12 +34,20 @@ export function AuthPage({ initialTab = 'login' }: AuthPageProps) {
   const [registerErrors, setRegisterErrors] = useState<RegisterErrors>({});
   const [statusMessage, setStatusMessage] = useState('');
 
+  const loginMutation = useLoginMutation();
+  const registerMutation = useRegisterMutation();
+
   function handleLogin() {
-    setStatusMessage('Login request ready.');
+    loginMutation.mutate({ email: loginValues.email, password: loginValues.password });
   }
 
   function handleRegister() {
-    setStatusMessage('Register request ready.');
+    registerMutation.mutate({
+      fullName: registerValues.fullName,
+      email: registerValues.email,
+      password: registerValues.password,
+      confirmPassword: registerValues.confirmPassword,
+    });
   }
 
   function submitLogin(event: React.FormEvent<HTMLFormElement>) {

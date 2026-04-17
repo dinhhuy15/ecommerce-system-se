@@ -2,15 +2,39 @@ import { api, apiRequest } from '@/lib/api/http';
 import type { ApiResponse } from '@/lib/api/types';
 import type { AuthSession } from '@/types/auth';
 import type { LoginRequest, RegisterRequest } from '@/types/auth';
+import type { Role } from '@/lib/constants/roles';
 
-export async function login(request: LoginRequest) {
-  const response = await api.post<ApiResponse<AuthSession>>('/api/auth/login', request);
-  return apiRequest(Promise.resolve(response));
+type AuthResponseRaw = {
+  token: string;
+  userId: number;
+  fullName: string;
+  email: string;
+  role: Role;
+};
+
+function mapAuthResponse(raw: AuthResponseRaw): AuthSession {
+  return {
+    accessToken: raw.token,
+    user: {
+      id: String(raw.userId),
+      email: raw.email,
+      fullName: raw.fullName,
+      role: raw.role,
+    },
+  };
 }
 
-export async function register(request: RegisterRequest) {
-  const response = await api.post<ApiResponse<AuthSession>>('/api/auth/register', request);
-  return apiRequest(Promise.resolve(response));
+export async function login(request: LoginRequest): Promise<AuthSession> {
+  const response = await api.post<ApiResponse<AuthResponseRaw>>('/api/auth/login', request);
+  const raw = await apiRequest(Promise.resolve(response));
+  return mapAuthResponse(raw);
+}
+
+export async function register(request: RegisterRequest): Promise<AuthSession> {
+  const payload = { fullName: request.fullName, email: request.email, password: request.password, verifiedPassword: request.confirmPassword };
+  const response = await api.post<ApiResponse<AuthResponseRaw>>('/api/auth/register', payload);
+  const raw = await apiRequest(Promise.resolve(response));
+  return mapAuthResponse(raw);
 }
 
 export async function logout() {

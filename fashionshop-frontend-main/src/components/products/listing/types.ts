@@ -3,7 +3,7 @@ export type ProductCategory = 'Outerwear' | 'Tailoring' | 'Knitwear' | 'Accessor
 export type ProductListingItem = {
   id: string;
   name: string;
-  category: ProductCategory;
+  category: string;
   price: number;
   imageSrc: string;
   imageAlt: string;

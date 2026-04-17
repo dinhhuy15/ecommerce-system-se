@@ -163,9 +163,29 @@ export async function deleteManageProduct(id: string) {
   return apiRequest(Promise.resolve(response));
 }
 
-export async function fetchStoreProducts(filter?: ProductFilter) {
-  const response = await api.get<ApiResponse<Product[]>>('/api/store/products', { params: filter });
-  return apiRequest(Promise.resolve(response));
+type StoreProductSummary = {
+  id: number;
+  name: string;
+  price: number;
+  imageUrl: string | null;
+  categoryName: string | null;
+  shortDescription: string | null;
+  inStock: boolean;
+  productDetailUrl: string;
+};
+
+type StorePaginatedResponse = {
+  items: StoreProductSummary[];
+  page: number;
+  size: number;
+  totalItems: number;
+  totalPages: number;
+};
+
+export async function fetchStoreProducts(filter?: ProductFilter): Promise<StoreProductSummary[]> {
+  const response = await api.get<ApiResponse<StorePaginatedResponse>>('/api/store/products', { params: filter });
+  const paginated = await apiRequest(Promise.resolve(response));
+  return paginated.items;
 }
 
 export async function fetchStoreProduct(idOrSlug: string) {

@@ -27,6 +27,9 @@ export function useLoginMutation() {
       toast.success('Welcome back');
       router.replace(redirectForRole(session.user.role));
     },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Invalid email or password');
+    },
   });
 }
 
@@ -39,6 +42,9 @@ export function useRegisterMutation() {
       setSession(session);
       toast.success('Account created');
       router.replace(redirectForRole(session.user.role));
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Registration failed');
     },
   });
 }
