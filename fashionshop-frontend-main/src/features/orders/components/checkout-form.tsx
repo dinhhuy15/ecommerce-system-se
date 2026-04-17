@@ -3,6 +3,7 @@
 import { useForm, type UseFormRegisterReturn } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { toast } from 'sonner';
 import type { CheckoutSummary } from '@/types/order';
 
 const checkoutSchema = z.object({
@@ -67,7 +68,7 @@ export function CheckoutForm({
   };
 
   return (
-    <form id="checkout-form" onSubmit={form.handleSubmit(handleSubmit)}>
+    <form id="checkout-form" onSubmit={form.handleSubmit(handleSubmit, () => toast.error('Please fill in all required fields'))}>
       {/* 01 Shipping Information */}
       <section className="mb-14">
         <h2 className="font-headline mb-10 text-xl font-black tracking-tight md:text-2xl">

@@ -17,7 +17,6 @@ export type Product = {
   isActive: boolean;
   isFeatured: boolean;
   slug?: string;
-  stock?: number;
   compareAtPrice?: number;
   colors?: string[];
   sizes?: string[];

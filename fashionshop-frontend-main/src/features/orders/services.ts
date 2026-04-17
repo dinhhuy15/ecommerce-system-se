@@ -7,6 +7,26 @@ import { mockOrders, getMockOrder, mockCart } from '@/data/mock-data';
 // TODO: Remove mock helpers once the real backend is available
 const USE_MOCK = false;
 
+// Map backend OrderResponse/OrderItemResponse fields to frontend Order/OrderSummaryItem fields
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapOrder(raw: any): Order {
+  return {
+    ...raw,
+    total: raw.totalPrice ?? raw.total ?? 0,
+    note: raw.customerNote ?? raw.note,
+    items: (raw.items ?? []).map((item: Record<string, unknown>) => ({
+      ...item,
+      name: (item.productName as string) ?? (item.name as string) ?? '',
+      total: (item.total as number) ?? ((item.price as number) ?? 0) * ((item.quantity as number) ?? 0),
+    })),
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapOrders(rawList: any[]): Order[] {
+  return (rawList ?? []).map(mapOrder);
+}
+
 export async function fetchCheckoutSummary(): Promise<CheckoutSummary> {
   if (USE_MOCK) {
     return {
@@ -24,7 +44,17 @@ export async function fetchCheckoutSummary(): Promise<CheckoutSummary> {
     };
   }
   const response = await api.get<ApiResponse<CheckoutSummary>>('/api/orders/checkout-summary');
-  return apiRequest(Promise.resolve(response));
+  const summary = await apiRequest(Promise.resolve(response));
+  // Map backend field names (productName, lineTotal, productImage) to frontend OrderSummaryItem fields
+  summary.items = (summary.items ?? []).map((item: Record<string, unknown>) => ({
+    productId: item.productId as string,
+    name: (item as Record<string, unknown>).productName as string ?? item.name as string ?? '',
+    quantity: item.quantity as number,
+    price: (item as Record<string, unknown>).unitPrice as number ?? item.price as number ?? 0,
+    total: (item as Record<string, unknown>).lineTotal as number ?? item.total as number ?? 0,
+    imageUrl: (item as Record<string, unknown>).productImage as string ?? item.imageUrl as string,
+  }));
+  return summary;
 }
 
 export async function updateCheckoutPaymentMethod(paymentMethod: string) {
@@ -52,18 +82,21 @@ export async function createOrder(request: CreateOrderRequest) {
 export async function fetchMyOrders() {
   if (USE_MOCK) return mockOrders;
   const response = await api.get<ApiResponse<Order[]>>('/api/orders/my');
-  return apiRequest(Promise.resolve(response));
+  const orders = await apiRequest(Promise.resolve(response));
+  return mapOrders(orders);
 }
 
 export async function fetchMyOrderHistory() {
   if (USE_MOCK) return mockOrders;
   const response = await api.get<ApiResponse<Order[]>>('/api/orders/my/history');
-  return apiRequest(Promise.resolve(response));
+  const orders = await apiRequest(Promise.resolve(response));
+  return mapOrders(orders);
 }
 
 export async function fetchMyOrder(orderId: string) {
   const response = await api.get<ApiResponse<Order>>(`/api/orders/my/${orderId}`);
-  return apiRequest(Promise.resolve(response));
+  const order = await apiRequest(Promise.resolve(response));
+  return mapOrder(order);
 }
 
 export async function fetchMyOrderPayment(orderId: string) {
@@ -78,12 +111,14 @@ export async function fetchMyOrderStatus(orderId: string) {
 
 export async function cancelMyOrder(orderId: string) {
   const response = await api.patch<ApiResponse<Order>>(`/api/orders/my/${orderId}/cancel`);
-  return apiRequest(Promise.resolve(response));
+  const order = await apiRequest(Promise.resolve(response));
+  return mapOrder(order);
 }
 
 export async function fetchOrders() {
   const response = await api.get<ApiResponse<Order[]>>('/api/orders');
-  return apiRequest(Promise.resolve(response));
+  const orders = await apiRequest(Promise.resolve(response));
+  return mapOrders(orders);
 }
 
 export async function fetchManageOrders(filter?: OrderFilter) {
@@ -92,8 +127,8 @@ export async function fetchManageOrders(filter?: OrderFilter) {
 
     if (filter?.keyword) {
       const k = filter.keyword.toLowerCase();
-      filteredItems = filteredItems.filter(o => 
-        o.orderNumber?.toLowerCase().includes(k) || 
+      filteredItems = filteredItems.filter(o =>
+        o.orderNumber?.toLowerCase().includes(k) ||
         o.customerName?.toLowerCase().includes(k) ||
         o.id.toLowerCase().includes(k)
       );
@@ -116,23 +151,27 @@ export async function fetchManageOrders(filter?: OrderFilter) {
     };
   }
   const response = await api.get<ApiResponse<ApiListResponse<Order>>>('/api/orders/manage', { params: filter });
-  return apiRequest(Promise.resolve(response));
+  const result = await apiRequest(Promise.resolve(response));
+  return { ...result, items: mapOrders(result.items) };
 }
 
 export async function fetchManageOrder(orderId: string) {
   if (USE_MOCK) return getMockOrder(orderId);
   const response = await api.get<ApiResponse<Order>>(`/api/orders/manage/${orderId}`);
-  return apiRequest(Promise.resolve(response));
+  const order = await apiRequest(Promise.resolve(response));
+  return mapOrder(order);
 }
 
 export async function fetchOrder(orderId: string) {
   const response = await api.get<ApiResponse<Order>>(`/api/orders/${orderId}`);
-  return apiRequest(Promise.resolve(response));
+  const order = await apiRequest(Promise.resolve(response));
+  return mapOrder(order);
 }
 
 export async function updateOrderStatus(orderId: string, status: string) {
   const response = await api.patch<ApiResponse<Order>>(`/api/orders/${orderId}/status`, { status });
-  return apiRequest(Promise.resolve(response));
+  const order = await apiRequest(Promise.resolve(response));
+  return mapOrder(order);
 }
 
 export async function updateManageOrderStatus(orderId: string, status: string) {
@@ -145,12 +184,12 @@ export async function updateManageOrderStatus(orderId: string, status: string) {
         activityLog: [
           {
             status: `Order ${status.toLowerCase()}`,
-            timestamp: new Date().toLocaleString('en-US', { 
-              month: 'short', 
-              day: 'numeric', 
-              year: 'numeric', 
-              hour: 'numeric', 
-              minute: '2-digit' 
+            timestamp: new Date().toLocaleString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit'
             }),
             isPrimary: true
           },
